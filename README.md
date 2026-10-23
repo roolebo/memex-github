@@ -99,6 +99,6 @@ Capabilities: `tests` and `bugs` are false, the others true.
 and no network.
 
 [memex]: https://github.com/roolebo/memex
-[discussion.md]: https://github.com/roolebo/memex/blob/main/discussion.md
-[tracker.md]: https://github.com/roolebo/memex/blob/main/tracker.md
-[ci.md]: https://github.com/roolebo/memex/blob/main/ci.md
+[discussion.md]: https://github.com/roolebo/memex/blob/main/skills/memex/discussion.md
+[tracker.md]: https://github.com/roolebo/memex/blob/main/skills/memex/tracker.md
+[ci.md]: https://github.com/roolebo/memex/blob/main/skills/memex/ci.md
