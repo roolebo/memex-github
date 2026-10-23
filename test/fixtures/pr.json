@@ -1,0 +1,64 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "title": "Fix the widget's lock",
+        "url": "https://github.com/example/widget/pull/7",
+        "state": "OPEN",
+        "body": "The lock leaked on the error path.",
+        "createdAt": "2026-09-01T09:00:00Z",
+        "updatedAt": "2026-09-05T12:00:00Z",
+        "author": {
+          "login": "alice",
+          "name": "Alice Author",
+          "email": "alice@example.org"
+        },
+        "head": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "cccccccccccccccccccccccccccccccccccccccc",
+                "committedDate": "2026-09-04T10:00:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "latestOpinionatedReviews": {
+          "nodes": [
+            {
+              "state": "APPROVED",
+              "author": {
+                "login": "bob",
+                "name": "Bob Reviewer",
+                "email": ""
+              }
+            },
+            {
+              "state": "CHANGES_REQUESTED",
+              "author": {
+                "login": "dan",
+                "name": "",
+                "email": ""
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "author": {
+                "login": "carol",
+                "name": "Carol Commenter",
+                "email": "carol@example.org"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

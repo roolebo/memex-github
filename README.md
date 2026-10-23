@@ -93,6 +93,11 @@ Capabilities: `tests` and `bugs` are false, the others true.
 - `resolved` takes effect at once: hold it until `publish`?
 - A fork: bind it, or its `parent`?
 
+## Tests
+
+`test/run [TEST...]` runs the tests against a fake GitHub; they need jq,
+and no network.
+
 [memex]: https://github.com/roolebo/memex
 [discussion.md]: https://github.com/roolebo/memex/blob/main/discussion.md
 [tracker.md]: https://github.com/roolebo/memex/blob/main/tracker.md

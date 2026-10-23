@@ -1,0 +1,35 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "title": "Drop the widget",
+        "url": "https://github.com/example/widget/pull/8",
+        "state": "CLOSED",
+        "body": "",
+        "createdAt": "2026-09-02T09:00:00Z",
+        "updatedAt": "2026-09-03T09:00:00Z",
+        "author": null,
+        "head": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "committedDate": "2026-09-01T08:00:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "latestOpinionatedReviews": {
+          "nodes": []
+        }
+      }
+    }
+  }
+}

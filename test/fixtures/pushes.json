@@ -1,0 +1,76 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "page": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOjI"
+          },
+          "nodes": [
+            {
+              "createdAt": "2026-09-02T10:00:00Z",
+              "actor": {
+                "login": "alice",
+                "name": "Alice Author",
+                "email": "alice@example.org"
+              },
+              "beforeCommit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "committedDate": "2026-09-01T08:00:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              },
+              "afterCommit": {
+                "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "committedDate": "2026-09-02T09:50:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "createdAt": "2026-09-04T10:05:00Z",
+              "actor": {
+                "login": "bob",
+                "name": "Bob Reviewer",
+                "email": ""
+              },
+              "beforeCommit": {
+                "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "committedDate": "2026-09-02T09:50:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              },
+              "afterCommit": {
+                "oid": "cccccccccccccccccccccccccccccccccccccccc",
+                "committedDate": "2026-09-04T10:00:00Z",
+                "parents": {
+                  "nodes": [
+                    {
+                      "oid": "9999999999999999999999999999999999999999"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

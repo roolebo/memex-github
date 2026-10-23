@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# test/bin/gh: a fake gh for test/run. Logs its arguments to FAKE_LOG;
+# `gh auth token` prints FAKE_GH_TOKEN, or fails without it as gh does
+# when logged out.
+#
+
+printf '%s\0' "$@" | jq -Rsc '{gh: split("\u0000")[:-1]}' >> "$FAKE_LOG"
+[ "$1 $2" == "auth token" -a -n "$FAKE_GH_TOKEN" ] || exit 1
+echo "$FAKE_GH_TOKEN"

@@ -1,0 +1,28 @@
+[
+  {
+    "url": "https://api.github.com/repos/example/widget/pulls/9",
+    "number": 9,
+    "state": "open",
+    "title": "Rebase the lock fix",
+    "head": {
+      "ref": "lock-rebased",
+      "sha": "dddddddddddddddddddddddddddddddddddddddd"
+    },
+    "base": {
+      "ref": "main"
+    }
+  },
+  {
+    "url": "https://api.github.com/repos/example/widget/pulls/7",
+    "number": 7,
+    "state": "open",
+    "title": "Fix the widget's lock",
+    "head": {
+      "ref": "lock",
+      "sha": "cccccccccccccccccccccccccccccccccccccccc"
+    },
+    "base": {
+      "ref": "main"
+    }
+  }
+]

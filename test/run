@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+#
+# test/run: tests of memex-github against a fake GitHub.
+#
+# test/bin comes first in PATH: its curl answers from test/fixtures and
+# logs every request, and its gh has a token only when a test gives it
+# one, so no test reaches a network. HOME is a scratch directory, so the
+# user's ~/.netrc stays unread.
+#
+
+set -e
+
+CURDIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+ROOT=$(dirname "$CURDIR")
+ADAPTER=$ROOT/memex-github
+ADDR=https://github.com/example/widget
+API=https://api.github.com
+REPO=$API/repos/example/widget
+GRAPHQL=$API/graphql
+A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+C=cccccccccccccccccccccccccccccccccccccccc
+DIR=$(mktemp -d)
+FAILED=0
+# A token the tests look for in curl's arguments
+TOKEN=t0ken
+
+die() {
+  echo "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat << EOF
+Usage: $0 [TEST...]
+
+Runs the given tests, or all of them:
+$(declare -F | cut -d' ' -f3 | grep '^test_' | sed 's/^/  /')
+EOF
+}
+
+cleanup() {
+  rm -rf "$DIR"
+}
+
+# Answer METHOD on URL with FIXTURE, - for none, and STATUS, when the
+# body contains MATCH
+route() {
+  printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4:-200}" "$5" \
+    >> "$FAKE_ROUTES"
+}
+
+# Answer GraphQL queries whose body contains MATCH with FIXTURE
+graphql() {
+  route POST "$GRAPHQL" "$1" 200 "$2"
+}
+
+# Use the token from the environment
+login() {
+  export GITHUB_TOKEN=$TOKEN
+  graphql viewer.json 'viewer { login }'
+}
+
+# Run the adapter on ADDR with ARGS; sets OUT, ERR and STATUS
+call() {
+  OUT=$(cd "$TEST_DIR" && "$ADAPTER" "$ADDR" "$@" 2> "$TEST_DIR/err") &&
+    STATUS=0 || STATUS=$?
+  ERR=$(< "$TEST_DIR/err")
+}
+
+# Apply a jq FILTER to OUT, one record at a time, or to all with -s
+q() {
+  jq -c "$@" <<< "$OUT"
+}
+
+# Apply a jq FILTER to the logged requests, as an array
+log() {
+  jq -sc "$1" "$FAKE_LOG"
+}
+
+# The logged requests as METHOD URL, one per line
+requests() {
+  jq -r 'select(.method) | "\(.method) \(.url)"' "$FAKE_LOG"
+}
+
+# JSON in one line, as jq -c prints it
+json() {
+  jq -c . <<< "$1"
+}
+
+check() {
+  [ "$2" == "$3" ] && return
+  echo "# $TEST: $1: expected '$3', got '$2'"
+  FAILED=$((FAILED + 1))
+}
+
+check_has() {
+  [[ "$2" == *"$3"* ]] && return
+  echo "# $TEST: $1: '$2' lacks '$3'"
+  FAILED=$((FAILED + 1))
+}
+
+test_capabilities() {
+  call discussion capabilities
+  check discussion "$(q .)" "$(json '{"exact": true, "resolved": true,
+    "drafts": false, "series": false, "votes": true}')"
+  call tracker capabilities
+  check tracker "$(q .)" \
+    '{"search":true,"comment":true,"transition":true}'
+  call ci capabilities
+  check ci "$(q .)" '{"tests":false,"logs":true,"retest":true,"bugs":false}'
+  check requests "$(requests)" ""
+}
+
+test_unsupported() {
+  local command
+  call code capabilities
+  check role "$STATUS" 2
+  call discussion series 7
+  check series "$STATUS" 2
+  for command in drafts draft discard publish; do
+    call discussion $command 7
+    check $command "$STATUS" 2
+  done
+  call tracker frobnicate 12
+  check tracker "$STATUS" 2
+  call ci tests 9001
+  check ci "$STATUS" 2
+  check requests "$(requests)" ""
+}
+
+test_bad_usage() {
+  local ADDR=https://github.com/example
+  call discussion capabilities
+  check addr "$STATUS" 1
+  check_has message "$ERR" "Not a GitHub repository URL"
+  ADDR=https://github.com/example/widget
+  call discussion change abc
+  check change "$STATUS" 1
+  call tracker issue abc
+  check issue "$STATUS" 1
+  call ci runs 'HEAD~1'
+  check commit "$STATUS" 1
+  call tracker transition 12 reopened
+  check transition "$STATUS" 1
+  check_has message "$ERR" "No such status: reopened"
+  check requests "$(requests)" ""
+}
+
+# The routes of pull request 7
+pull_request() {
+  graphql pr.json latestOpinionatedReviews
+  graphql pushes.json timelineItems
+}
+
+test_change() {
+  login
+  pull_request
+  call discussion change 7
+  check status "$STATUS" 0
+  check records "$(q -s length)" 1
+  check envelope "$(q '[.id, .source, .role, .kind, .links, .notes]')" \
+    "$(json '["7", "https://github.com/example/widget", "discussion",
+      "change", [["change", "7"]], {}]')"
+  check basis "$(q -r .basis)" "$C 2026-09-05T12:00:00Z"
+  check title "$(q .data.title)" "\"Fix the widget's lock\""
+  check url "$(q .data.url)" '"https://github.com/example/widget/pull/7"'
+  check status "$(q .data.status)" '"open"'
+  check owner "$(q .data.owner)" "$(json '{"name": "Alice Author",
+    "email": "alice@example.org", "username": "alice", "me": true}')"
+  check message "$(q .data.message)" '"The lock leaked on the error path."'
+  check variables "$(log '[.[] | select(.method) | .body | fromjson
+    | .variables] | unique')" "$(json '[
+    {}, {"owner": "example", "name": "widget", "number": 7}]')"
+}
+
+# A revision for each commit a force-push replaced or brought, oldest
+# first; only the newest can be fetched
+test_change_revisions() {
+  login
+  pull_request
+  call discussion change 7
+  check ids "$(q '[.data.revisions[].id]')" "[\"$A\",\"$B\",\"$C\"]"
+  check current "$(q -r .data.current)" "$C"
+  check created "$(q '[.data.revisions[].created]')" "$(json '[
+    "2026-09-01T09:00:00Z", "2026-09-02T10:00:00Z",
+    "2026-09-04T10:05:00Z"]')"
+  check uploaders "$(q '[.data.revisions[].uploader.username]')" \
+    '["alice","alice","bob"]'
+  check fetch "$(q '[.data.revisions[].fetch]')" \
+    '[null,null,"refs/pull/7/head"]'
+  check parents "$(q '.data.revisions[0] | [.commit, .parents]')" \
+    "[\"$A\",[\"9999999999999999999999999999999999999999\"]]"
+}
+
+# Approvals and change requests; a missing name or email falls back
+test_change_votes() {
+  login
+  pull_request
+  call discussion change 7
+  check votes "$(q '[.data.votes[] | [.label, .value, .by.username]]')" \
+    '[["approved",1,"bob"],["approved",-1,"dan"]]'
+  check by "$(q '.data.votes[1].by')" \
+    '{"name":"dan","email":null,"username":"dan","me":false}'
+}
+
+# A deleted author is GitHub's ghost
+test_change_closed() {
+  login
+  graphql pr-closed.json latestOpinionatedReviews
+  graphql empty-page.json timelineItems
+  call discussion change 8
+  check status "$STATUS" 0
+  check status "$(q .data.status)" '"abandoned"'
+  check owner "$(q .data.owner)" \
+    '{"name":"ghost","email":null,"username":"ghost","me":false}'
+  check revisions "$(q '[.data.revisions[] | [.id, .created, .fetch]]')" \
+    "[[\"$A\",\"2026-09-02T09:00:00Z\",\"refs/pull/8/head\"]]"
+}
+
+test_change_missing() {
+  login
+  graphql pr-missing.json latestOpinionatedReviews
+  call discussion change 99
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "Could not resolve to a PullRequest"
+}
+
+test_change_needs_token() {
+  call discussion change 7
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "The GraphQL API needs a token"
+  check requests "$(requests)" ""
+}
+
+test_locate() {
+  login
+  route GET "$REPO/commits/$C/pulls" commit-pulls.json
+  pull_request
+  call discussion locate "$C"
+  check status "$STATUS" 0
+  check id "$(q .id)" '"7"'
+}
+
+test_locate_none() {
+  route GET "$REPO/commits/$C/pulls" empty-list.json
+  call discussion locate "$C"
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "No pull request has commit $C"
+  check auth "$(log '[.[].auth | select(.)]')" '["none"]'
+}
+
+# The token goes on stdin
+test_token() {
+  login
+  pull_request
+  call discussion change 7
+  check status "$STATUS" 0
+  check auth "$(log '[.[].auth | select(.)] | unique')" '["stdin"]'
+  check config "$(jq -sr '.[0].config' "$FAKE_LOG")" \
+    "header = \"Authorization: bearer $TOKEN\""
+  check args "$(log "[.[].args[]? | select(contains(\"$TOKEN\"))]")" '[]'
+  check gh "$(log '[.[].gh | select(.)]')" '[]'
+}
+
+test_gh_token() {
+  export FAKE_GH_TOKEN=$TOKEN
+  graphql viewer.json 'viewer { login }'
+  pull_request
+  call discussion change 7
+  check status "$STATUS" 0
+  check gh "$(log '[.[].gh | select(.)]')" \
+    '[["auth","token","--hostname","github.com"]]'
+  check config "$(jq -sr 'map(select(.method))[0].config' "$FAKE_LOG")" \
+    "header = \"Authorization: bearer $TOKEN\""
+}
+
+test_netrc() {
+  printf 'machine api.github.com login u password %s\n' "$TOKEN" \
+    > "$HOME/.netrc"
+  graphql viewer.json 'viewer { login }'
+  pull_request
+  call discussion change 7
+  check status "$STATUS" 0
+  check auth "$(log '[.[].auth | select(.)] | unique')" '["netrc"]'
+}
+
+# GitHub Enterprise serves its API on the host of ADDR
+test_enterprise() {
+  local ADDR=https://ghe.example.com/example/widget
+  local GRAPHQL=https://ghe.example.com/api/graphql
+  local REPO=https://ghe.example.com/api/v3/repos/example/widget
+  export FAKE_GH_TOKEN=$TOKEN
+  graphql viewer.json 'viewer { login }'
+  route GET "$REPO/commits/$C/pulls" commit-pulls.json
+  pull_request
+  call discussion locate "$C"
+  check status "$STATUS" 0
+  check source "$(q .source)" '"https://ghe.example.com/example/widget"'
+  check gh "$(log '[.[].gh | select(.)][0][-1]')" '"ghe.example.com"'
+}
+
+run() {
+  local failed=$FAILED
+  local unexpected
+  TEST=$1
+  TEST_DIR=$DIR/$1
+  mkdir -p "$TEST_DIR/home"
+  export HOME=$TEST_DIR/home
+  export FAKE_LOG=$TEST_DIR/log
+  export FAKE_ROUTES=$TEST_DIR/routes
+  : > "$FAKE_LOG"
+  : > "$FAKE_ROUTES"
+  "$1" < /dev/null
+  unexpected=$(jq -r 'select(.unexpected) | "\(.method) \(.url)"' "$FAKE_LOG")
+  check "unexpected requests" "$unexpected" ""
+  unset GITHUB_TOKEN FAKE_GH_TOKEN
+  if [ $FAILED -eq $failed ]; then
+    echo "ok $1"
+  else
+    echo "not ok $1"
+  fi
+}
+
+if [ "$1" == "-h" -o "$1" == "--help" ]; then
+  usage
+  exit 0
+fi
+command -v jq > /dev/null || die "jq is not installed"
+trap cleanup EXIT
+export FAKE_FIXTURES=$CURDIR/fixtures
+export PATH=$CURDIR/bin:$PATH
+unset GITHUB_TOKEN FAKE_GH_TOKEN
+
+TESTS=("$@")
+[ $# -gt 0 ] || TESTS=($(declare -F | cut -d' ' -f3 | grep '^test_'))
+for test in "${TESTS[@]}"; do
+  declare -F "$test" > /dev/null || die "No such test: $test"
+  run "$test"
+done
+[ $FAILED -eq 0 ] || die "$FAILED failed"
