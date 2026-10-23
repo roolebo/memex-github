@@ -500,6 +500,95 @@ test_transition() {
   check reopen "$(body PATCH)" '{"state":"open"}'
 }
 
+test_runs() {
+  route GET "$REPO/actions/runs?head_sha=$C&per_page=100" runs.json
+  call ci runs "$C"
+  check status "$STATUS" 0
+  check ids "$(q -s '[.[].id]')" '["501","502","503","504"]'
+  check envelope "$(record 501 | jq -c '[.source, .role, .kind, .basis,
+    .notes]')" \
+    '["https://github.com/example/widget","ci","run","completed:success",{}]'
+  check data "$(record 501 | jq -c .data)" "$(json "{\"commit\": \"$C\",
+    \"status\": \"done\", \"result\": \"pass\",
+    \"started\": \"2026-09-04T10:01:00Z\",
+    \"finished\": \"2026-09-04T10:09:30Z\",
+    \"url\": \"https://github.com/example/widget/actions/runs/501\",
+    \"config\": {\"workflow\": \"Tests\", \"event\": \"pull_request\",
+      \"branch\": \"lock\"}}")"
+  check running "$(record 502 | jq -c '.data | [.status, .result,
+    .finished]')" '["running",null,null]'
+  check results "$(q -s '[.[].data.result]')" \
+    '["pass",null,"error","timeout"]'
+}
+
+# A run links the pull requests of its own repository, not of forks
+test_run_links() {
+  route GET "$REPO/actions/runs/501" run.json
+  call ci run 501
+  check status "$STATUS" 0
+  check links "$(q .links)" "[[\"commit\",\"$C\"],[\"change\",\"7\"]]"
+}
+
+test_suites() {
+  route GET "$REPO/actions/runs/501/jobs?per_page=100" jobs.json
+  call ci suites 501
+  check status "$STATUS" 0
+  check build "$(record 9001 | jq -c '[.kind, .basis, .links, .data]')" \
+    "$(json '["suite", "completed:success", [], {"run": "501",
+      "name": "build", "result": "pass", "counts": {}, "duration": 150,
+      "url": "https://github.com/example/widget/actions/runs/501/job/9001"}]')"
+  check results "$(q -s '[.[].data | [.name, .result, .duration]]')" \
+    "$(json '[["build", "pass", 150], ["test", "fail", 330],
+    ["docs", "skip", 0], ["deploy", null, null]]')"
+}
+
+test_logs_job() {
+  route GET "$REPO/actions/jobs/9001" job.json
+  call ci logs 9001
+  check status "$STATUS" 0
+  check log "$(q '[.id, .kind, (.data | del(.url))]')" "$(json '["9001.log",
+    "log", {"of": "9001", "name": "build.log", "size": null}]')"
+  check url "$(q -r .data.url)" "$REPO/actions/jobs/9001/logs"
+}
+
+# A run's logs come as one archive; its artifacts too
+test_logs_run() {
+  route GET "$REPO/actions/jobs/501" - 404
+  route GET "$REPO/actions/runs/501" run.json
+  route GET "$REPO/actions/runs/501/artifacts?per_page=100" artifacts.json
+  call ci logs 501
+  check status "$STATUS" 0
+  check logs "$(q -s '[.[] | [.id, (.data | del(.url))]]')" "$(json '[
+    ["501.zip", {"of": "501", "name": "logs.zip", "size": null}],
+    ["7001", {"of": "501", "name": "test-results.zip", "size": 52341}]]')"
+  check urls "$(q -r .data.url)" \
+    "$REPO/actions/runs/501/logs"$'\n'"$REPO/actions/artifacts/7001/zip"
+}
+
+test_logs_missing() {
+  route GET "$REPO/actions/jobs/77" - 404
+  route GET "$REPO/actions/runs/77" - 404
+  call ci logs 77
+  check status "$STATUS" 1
+  check out "$OUT" ""
+}
+
+test_retest() {
+  export GITHUB_TOKEN=$TOKEN
+  route POST "$REPO/actions/runs/501/rerun" - 201
+  call ci retest 501 <<< '{"reason": "flaky"}'
+  check status "$STATUS" 0
+  check requests "$(requests)" "POST $REPO/actions/runs/501/rerun"
+  check auth "$(log '[.[].auth | select(.)]')" '["stdin"]'
+}
+
+test_retest_error() {
+  route POST "$REPO/actions/runs/501/rerun" - 403
+  call ci retest 501 <<< '{"reason": "flaky"}'
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "Cannot run 501 again"
+}
+
 run() {
   local failed=$FAILED
   local unexpected

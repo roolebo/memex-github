@@ -1,0 +1,124 @@
+{
+  "total_count": 4,
+  "workflow_runs": [
+    {
+      "id": 501,
+      "name": "Tests",
+      "head_branch": "lock",
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "path": ".github/workflows/ci.yml",
+      "run_number": 40,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 11,
+      "html_url": "https://github.com/example/widget/actions/runs/501",
+      "pull_requests": [
+        {
+          "url": "https://api.github.com/repos/example/widget/pulls/7",
+          "id": 417493777,
+          "number": 7,
+          "head": {
+            "ref": "lock",
+            "sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "repo": {
+              "id": 212613049,
+              "url": "https://api.github.com/repos/example/widget",
+              "name": "widget"
+            }
+          },
+          "base": {
+            "ref": "main",
+            "sha": "9999999999999999999999999999999999999999",
+            "repo": {
+              "id": 1197919853,
+              "url": "https://api.github.com/repos/example/widget",
+              "name": "widget"
+            }
+          }
+        },
+        {
+          "url": "https://api.github.com/repos/someone/widget/pulls/52",
+          "id": 4174937752,
+          "number": 52,
+          "head": {
+            "ref": "lock",
+            "sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "repo": {
+              "id": 212613049,
+              "url": "https://api.github.com/repos/example/widget",
+              "name": "widget"
+            }
+          },
+          "base": {
+            "ref": "main",
+            "sha": "9999999999999999999999999999999999999999",
+            "repo": {
+              "id": 1197919853,
+              "url": "https://api.github.com/repos/someone/widget",
+              "name": "widget"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-09-04T10:01:00Z",
+      "updated_at": "2026-09-04T10:09:30Z",
+      "run_attempt": 1,
+      "run_started_at": "2026-09-04T10:01:00Z"
+    },
+    {
+      "id": 502,
+      "name": "Lint",
+      "head_branch": "lock",
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "path": ".github/workflows/ci.yml",
+      "run_number": 40,
+      "event": "pull_request",
+      "status": "in_progress",
+      "conclusion": null,
+      "workflow_id": 11,
+      "html_url": "https://github.com/example/widget/actions/runs/502",
+      "pull_requests": [],
+      "created_at": "2026-09-04T10:01:00Z",
+      "updated_at": "2026-09-04T10:02:00Z",
+      "run_attempt": 1,
+      "run_started_at": "2026-09-04T10:01:00Z"
+    },
+    {
+      "id": 503,
+      "name": "Nightly",
+      "head_branch": "lock",
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "path": ".github/workflows/ci.yml",
+      "run_number": 40,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "workflow_id": 11,
+      "html_url": "https://github.com/example/widget/actions/runs/503",
+      "pull_requests": [],
+      "created_at": "2026-09-04T10:01:00Z",
+      "updated_at": "2026-09-04T10:30:00Z",
+      "run_attempt": 1,
+      "run_started_at": "2026-09-04T10:01:00Z"
+    },
+    {
+      "id": 504,
+      "name": "Fuzz",
+      "head_branch": "lock",
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "path": ".github/workflows/ci.yml",
+      "run_number": 40,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "timed_out",
+      "workflow_id": 11,
+      "html_url": "https://github.com/example/widget/actions/runs/504",
+      "pull_requests": [],
+      "created_at": "2026-09-04T10:01:00Z",
+      "updated_at": "2026-09-04T16:01:00Z",
+      "run_attempt": 1,
+      "run_started_at": "2026-09-04T10:01:00Z"
+    }
+  ]
+}

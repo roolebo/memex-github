@@ -1,0 +1,93 @@
+{
+  "total_count": 4,
+  "jobs": [
+    {
+      "id": 9001,
+      "run_id": 501,
+      "workflow_name": "Tests",
+      "head_branch": "lock",
+      "run_url": "https://api.github.com/repos/example/widget/actions/runs/501",
+      "run_attempt": 1,
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "url": "https://api.github.com/repos/example/widget/actions/jobs/9001",
+      "html_url": "https://github.com/example/widget/actions/runs/501/job/9001",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-09-04T10:01:00Z",
+      "started_at": "2026-09-04T10:01:10Z",
+      "completed_at": "2026-09-04T10:03:40Z",
+      "name": "build",
+      "steps": [],
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_name": "GitHub Actions 1"
+    },
+    {
+      "id": 9002,
+      "run_id": 501,
+      "workflow_name": "Tests",
+      "head_branch": "lock",
+      "run_url": "https://api.github.com/repos/example/widget/actions/runs/501",
+      "run_attempt": 1,
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "url": "https://api.github.com/repos/example/widget/actions/jobs/9002",
+      "html_url": "https://github.com/example/widget/actions/runs/501/job/9002",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-09-04T10:01:00Z",
+      "started_at": "2026-09-04T10:03:50Z",
+      "completed_at": "2026-09-04T10:09:20Z",
+      "name": "test",
+      "steps": [],
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_name": "GitHub Actions 1"
+    },
+    {
+      "id": 9003,
+      "run_id": 501,
+      "workflow_name": "Tests",
+      "head_branch": "lock",
+      "run_url": "https://api.github.com/repos/example/widget/actions/runs/501",
+      "run_attempt": 1,
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "url": "https://api.github.com/repos/example/widget/actions/jobs/9003",
+      "html_url": "https://github.com/example/widget/actions/runs/501/job/9003",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-09-04T10:01:00Z",
+      "started_at": "2026-09-04T10:01:00Z",
+      "completed_at": "2026-09-04T10:01:00Z",
+      "name": "docs",
+      "steps": [],
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_name": "GitHub Actions 1"
+    },
+    {
+      "id": 9004,
+      "run_id": 501,
+      "workflow_name": "Tests",
+      "head_branch": "lock",
+      "run_url": "https://api.github.com/repos/example/widget/actions/runs/501",
+      "run_attempt": 1,
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "url": "https://api.github.com/repos/example/widget/actions/jobs/9004",
+      "html_url": "https://github.com/example/widget/actions/runs/501/job/9004",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-09-04T10:01:00Z",
+      "started_at": null,
+      "completed_at": null,
+      "name": "deploy",
+      "steps": [],
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_name": "GitHub Actions 1"
+    }
+  ]
+}
