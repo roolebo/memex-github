@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# memex-github: memex adapter for the discussion role in GitHub pull
-# requests.
+# memex-github: memex adapter for GitHub: discussion in pull requests,
+# tracker in issues.
 #
 #   memex-github ADDR ROLE COMMAND [ARGUMENTS]
 #
@@ -9,8 +9,8 @@
 # else from `gh auth token` for ADDR's host, or else from ~/.netrc for the
 # API host: api.github.com, or ADDR's host on GitHub Enterprise. The
 # GraphQL API needs it; without it only the REST call of locate works, on
-# public repositories. Never prompts. Drafts and
-# publishing are not implemented yet and exit 2.
+# public repositories. Never prompts. Drafts and publishing are not
+# implemented yet and exit 2.
 #
 
 set -e
@@ -31,6 +31,11 @@ Usage: $0 ADDR discussion capabilities
        $0 ADDR discussion locate COMMIT
        $0 ADDR discussion change CHANGE
        $0 ADDR discussion threads CHANGE
+       $0 ADDR tracker capabilities
+       $0 ADDR tracker issue ISSUE
+       $0 ADDR tracker search < QUERY
+       $0 ADDR tracker comment ISSUE < TEXT
+       $0 ADDR tracker transition ISSUE open|closed
 EOF
 }
 
@@ -285,13 +290,95 @@ threads() {
       | sort_by(.data.comments[0].created)[]'
 }
 
+PAGE=per_page=100
+
+# Prints the issue RECORD of ISSUE
+issue() {
+  local data
+  local comments
+  local page=1
+  local more
+  data=$(get "repos/$OWNER/$NAME/issues/$1") || exit 1
+  [ "$(jq 'has("pull_request")' <<< "$data")" == false ] ||
+    die "#$1 is a pull request"
+  while :; do
+    more=$(get "repos/$OWNER/$NAME/issues/$1/comments?$PAGE&page=$page") ||
+      exit 1
+    comments+=$more
+    [ "$(jq length <<< "$more")" -eq 100 ] || break
+    page=$((page + 1))
+  done
+  comments=$(jq -sc add <<< "$comments")
+  jq -c --arg addr "$ADDR" --argjson self "$SELF" \
+    --argjson comments "$comments" "$JQ_DEFS"'
+    (.number | tostring) as $id
+    | {
+        id: $id, source: $addr, role: "tracker", kind: "issue",
+        basis: .updated_at, links: [["issue", $id]],
+        data: {
+          title: .title,
+          type: (.type.name // null),
+          status: .state,
+          closed: (.state == "closed"),
+          priority: null,
+          assignee: (if .assignee then .assignee | person else null end),
+          reporter: (.user | person),
+          created: .created_at,
+          updated: .updated_at,
+          url: .html_url,
+          text: (.body // ""),
+          comments: [$comments[] | {
+            id: (.id | tostring),
+            author: (.user | person),
+            text: .body,
+            created: .created_at
+          }],
+          related: []
+        },
+        notes: {}
+      }' <<< "$data"
+}
+
+# Prints the issue RECORDs matching a QUERY in GitHub's search syntax,
+# read from stdin
+search() {
+  local query
+  local found
+  local number
+  query=$(cat)
+  [ -n "$query" ] || die "No QUERY on stdin"
+  query=$(jq -rn --arg q "repo:$OWNER/$NAME is:issue $query" '$q | @uri')
+  found=$(get "search/issues?q=$query&per_page=100") || exit 1
+  for number in $(jq -r '.items[].number' <<< "$found"); do
+    issue "$number"
+  done
+}
+
+# Adds a comment to ISSUE, its text read from stdin
+comment() {
+  local body
+  body=$(jq -Rsc '{body: .}')
+  fetch --data-binary "$body" \
+    "$API/repos/$OWNER/$NAME/issues/$1/comments" > /dev/null ||
+    die "Cannot comment on #$1"
+}
+
+# Moves ISSUE to STATUS, open or closed
+transition() {
+  [ "$2" == open -o "$2" == closed ] || die "No such status: $2"
+  fetch -X PATCH --data-binary "{\"state\": \"$2\"}" \
+    "$API/repos/$OWNER/$NAME/issues/$1" > /dev/null ||
+    die "Cannot move #$1 to $2"
+}
+
 if [ "$1" == "-h" -o "$1" == "--help" ]; then
   usage
   exit 0
 fi
 [ $# -ge 3 ] || die "$(usage)"
-if [ "$2" != discussion ]; then
-  echo "Not a $2 adapter" >&2
+ROLE=$2
+if [ "$ROLE" != discussion -a "$ROLE" != tracker ]; then
+  echo "Not a $ROLE adapter" >&2
   exit 2
 fi
 # Drop ROLE: the commands below take ADDR COMMAND [ARGUMENTS]
@@ -318,6 +405,37 @@ if [ -n "$GITHUB_TOKEN" ]; then
   AUTH=env
 elif grep -qs "machine $API_HOST\b" ~/.netrc; then
   AUTH=netrc
+fi
+
+if [ "$ROLE" == tracker ]; then
+  case "$2" in
+    capabilities)
+      echo '{"search": true, "comment": true, "transition": true}'
+      ;;
+    issue)
+      [ $# -eq 3 ] || die "$(usage)"
+      [[ "$3" =~ ^[0-9]+$ ]] || die "Not an issue number: $3"
+      SELF=$(self)
+      issue "$3"
+      ;;
+    search)
+      [ $# -eq 2 ] || die "$(usage)"
+      SELF=$(self)
+      search
+      ;;
+    comment)
+      [ $# -eq 3 ] || die "$(usage)"
+      comment "$3"
+      ;;
+    transition)
+      [ $# -eq 4 ] || die "$(usage)"
+      transition "$3" "$4"
+      ;;
+    *)
+      unsupported "Not supported: $2"
+      ;;
+  esac
+  exit 0
 fi
 
 case "$2" in
