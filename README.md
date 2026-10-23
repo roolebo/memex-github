@@ -10,7 +10,6 @@ the GraphQL API, and REST for `locate`, with the token in `GITHUB_TOKEN`,
 or else from `gh auth token` for HOST, or else in `~/.netrc` for the API
 host: `api.github.com`, or HOST on GitHub Enterprise.
 
-`detect REPO` prints `discussion` and ADDR for a remote on GitHub.
 
 ## Commands
 

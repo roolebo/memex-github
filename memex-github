@@ -3,7 +3,6 @@
 # memex-github: memex adapter for the discussion role in GitHub pull
 # requests.
 #
-#   memex-github detect REPO
 #   memex-github ADDR ROLE COMMAND [ARGUMENTS]
 #
 # README.md specifies the mapping. The token comes from GITHUB_TOKEN, or
@@ -28,29 +27,11 @@ unsupported() {
 
 usage() {
   cat << EOF
-Usage: $0 detect REPO
-       $0 ADDR discussion capabilities
+Usage: $0 ADDR discussion capabilities
        $0 ADDR discussion locate COMMIT
        $0 ADDR discussion change CHANGE
        $0 ADDR discussion threads CHANGE
 EOF
-}
-
-REMOTE_RE='^(https://|ssh://)?([^@/]+@)?github\.com[:/]([^/]+)/([^/]+)$'
-
-# Prints the URL of the first GitHub repository among REPO's remotes
-detect() {
-  local url
-  local repo
-  [ -d "$1" ] || die "No such directory: $1"
-  for url in $(git -C "$1" remote -v | cut -f2 | cut -d' ' -f1); do
-    url=${url%/}
-    if [[ "$url" =~ $REMOTE_RE ]]; then
-      repo=${BASH_REMATCH[3]}/${BASH_REMATCH[4]%.git}
-      echo "discussion https://github.com/$repo"
-      return
-    fi
-  done
 }
 
 ADDR_RE='^(https?)://([^/:]+)/([^/]+)/([^/]+)$'
@@ -306,11 +287,6 @@ threads() {
 
 if [ "$1" == "-h" -o "$1" == "--help" ]; then
   usage
-  exit 0
-fi
-if [ "$1" == detect ]; then
-  [ $# -eq 2 ] || die "$(usage)"
-  detect "$2"
   exit 0
 fi
 [ $# -ge 3 ] || die "$(usage)"
