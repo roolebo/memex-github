@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # memex-github: memex adapter for GitHub: discussion in pull requests,
-# tracker in issues.
+# tracker in issues, ci in Actions.
 #
 #   memex-github ADDR ROLE COMMAND [ARGUMENTS]
 #
@@ -36,6 +36,12 @@ Usage: $0 ADDR discussion capabilities
        $0 ADDR tracker search < QUERY
        $0 ADDR tracker comment ISSUE < TEXT
        $0 ADDR tracker transition ISSUE open|closed
+       $0 ADDR ci capabilities
+       $0 ADDR ci runs COMMIT
+       $0 ADDR ci run RUN
+       $0 ADDR ci suites RUN
+       $0 ADDR ci logs ID
+       $0 ADDR ci retest RUN
 EOF
 }
 
@@ -371,13 +377,103 @@ transition() {
     die "Cannot move #$1 to $2"
 }
 
+# jq definitions of the ci role
+CI_DEFS='
+def result: {success: "pass", failure: "fail", skipped: "skip",
+  timed_out: "timeout", neutral: "pass"}[. // ""] // "error";
+def status: if . == "completed" then "done"
+  elif . == "in_progress" then "running" else "queued" end;
+def seconds($from; $to): if $from and $to
+  then ($to | fromdateiso8601) - ($from | fromdateiso8601) else null end;
+def record($kind; $id; $basis; $links; $data): {
+  id: $id, source: $addr, role: "ci", kind: $kind,
+  basis: $basis, links: $links, data: $data, notes: {}
+};
+def run: record("run"; (.id | tostring);
+  "\(.status):\(.conclusion // "")";
+  [["commit", .head_sha]] + [.pull_requests[]?
+    | select(.base.repo.url == $repo) | ["change", (.number | tostring)]];
+  {
+    commit: .head_sha,
+    status: (.status | status),
+    result: (if .status == "completed" then .conclusion | result
+      else null end),
+    started: .run_started_at,
+    finished: (if .status == "completed" then .updated_at else null end),
+    url: .html_url,
+    config: {workflow: .name, event: .event, branch: .head_branch}
+  });
+'
+
+# Prints the run RECORDs of the workflow runs on COMMIT
+runs() {
+  local data
+  data=$(get "repos/$OWNER/$NAME/actions/runs?head_sha=$1&$PAGE") || exit 1
+  jq -c --arg addr "$ADDR" --arg repo "$API/repos/$OWNER/$NAME" \
+    "$CI_DEFS"'.workflow_runs[] | run' <<< "$data"
+}
+
+# Prints the run RECORD of RUN
+run() {
+  local data
+  data=$(get "repos/$OWNER/$NAME/actions/runs/$1") || exit 1
+  jq -c --arg addr "$ADDR" --arg repo "$API/repos/$OWNER/$NAME" \
+    "$CI_DEFS"'run' <<< "$data"
+}
+
+# Prints a suite RECORD for each job of RUN
+suites() {
+  local data
+  data=$(get "repos/$OWNER/$NAME/actions/runs/$1/jobs?$PAGE") || exit 1
+  jq -c --arg addr "$ADDR" --arg run "$1" "$CI_DEFS"'
+    .jobs[] | record("suite"; (.id | tostring);
+      "\(.status):\(.conclusion // "")"; [];
+      {
+        run: $run,
+        name: .name,
+        result: (if .status == "completed" then .conclusion | result
+          else null end),
+        counts: {},
+        duration: seconds(.started_at; .completed_at),
+        url: .html_url
+      })' <<< "$data"
+}
+
+# Prints the log RECORDs of RUN, its logs and artifacts, or of a job
+logs() {
+  local data
+  if data=$(fetch "$API/repos/$OWNER/$NAME/actions/jobs/$1" 2> /dev/null); then
+    jq -c --arg addr "$ADDR" --arg api "$API/repos/$OWNER/$NAME" \
+      "$CI_DEFS"'record("log"; "\(.id).log"; ""; [];
+        {of: (.id | tostring), name: "\(.name).log",
+         url: "\($api)/actions/jobs/\(.id)/logs", size: null})' <<< "$data"
+    return
+  fi
+  run "$1" > /dev/null
+  data=$(get "repos/$OWNER/$NAME/actions/runs/$1/artifacts?$PAGE") || exit 1
+  jq -c --arg addr "$ADDR" --arg run "$1" \
+    --arg api "$API/repos/$OWNER/$NAME" "$CI_DEFS"'
+    record("log"; "\($run).zip"; ""; [];
+      {of: $run, name: "logs.zip",
+       url: "\($api)/actions/runs/\($run)/logs", size: null}),
+    (.artifacts[] | record("log"; (.id | tostring); ""; [];
+      {of: $run, name: "\(.name).zip", url: .archive_download_url,
+       size: .size_in_bytes}))' <<< "$data"
+}
+
+# Runs RUN again
+retest() {
+  fetch -X POST "$API/repos/$OWNER/$NAME/actions/runs/$1/rerun" \
+    > /dev/null || die "Cannot run $1 again"
+}
+
 if [ "$1" == "-h" -o "$1" == "--help" ]; then
   usage
   exit 0
 fi
 [ $# -ge 3 ] || die "$(usage)"
 ROLE=$2
-if [ "$ROLE" != discussion -a "$ROLE" != tracker ]; then
+if [ "$ROLE" != discussion -a "$ROLE" != tracker -a "$ROLE" != ci ]; then
   echo "Not a $ROLE adapter" >&2
   exit 2
 fi
@@ -405,6 +501,23 @@ if [ -n "$GITHUB_TOKEN" ]; then
   AUTH=env
 elif grep -qs "machine $API_HOST\b" ~/.netrc; then
   AUTH=netrc
+fi
+
+if [ "$ROLE" == ci ]; then
+  case "$2" in
+    capabilities)
+      echo '{"tests": false, "logs": true, "retest": true, "bugs": false}'
+      ;;
+    runs | run | suites | logs | retest)
+      [ $# -eq 3 ] || die "$(usage)"
+      [[ "$3" =~ ^[0-9a-f]+$ ]] || die "Not an id or commit: $3"
+      "$2" "$3"
+      ;;
+    *)
+      unsupported "Not supported: $2"
+      ;;
+  esac
+  exit 0
 fi
 
 if [ "$ROLE" == tracker ]; then
