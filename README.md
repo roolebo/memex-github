@@ -1,8 +1,8 @@
 # memex-github
 
-A [memex] adapter for GitHub: `discussion` in pull requests and `tracker`
-in issues. The roles are specified in memex's [discussion.md] and
-[tracker.md].
+A [memex] adapter for GitHub: `discussion` in pull requests, `tracker` in
+issues and `ci` in Actions. The roles are specified in memex's
+[discussion.md], [tracker.md] and [ci.md].
 
 ## Reaching GitHub
 
@@ -68,6 +68,23 @@ Capabilities: `series` is false, the others true.
 - `related`: empty.
 - `basis`: `updated_at`.
 
+## CI
+
+    runs COMMIT     GET /repos/OWNER/REPO/actions/runs?head_sha=COMMIT
+    run RUN         GET /repos/OWNER/REPO/actions/runs/RUN
+    suites RUN      GET /repos/OWNER/REPO/actions/runs/RUN/jobs
+    logs ID         a job's log, or a run's logs and artifacts
+    retest RUN      POST /repos/OWNER/REPO/actions/runs/RUN/rerun
+
+Capabilities: `tests` and `bugs` are false, the others true.
+
+- RUN is a workflow run, SUITE one of its jobs.
+- `result`: success is pass, failure fail, skipped skip, timed_out
+  timeout, neutral pass, anything else error.
+- `config`: the workflow, event and branch.
+- `links`: `commit`, and `change` while a pull request of the repository
+  points at it.
+
 ## Open questions
 
 - Fast-forward pushes leave no event: how to count REVISIONs?
@@ -79,3 +96,4 @@ Capabilities: `series` is false, the others true.
 [memex]: https://github.com/roolebo/memex
 [discussion.md]: https://github.com/roolebo/memex/blob/main/discussion.md
 [tracker.md]: https://github.com/roolebo/memex/blob/main/tracker.md
+[ci.md]: https://github.com/roolebo/memex/blob/main/ci.md
