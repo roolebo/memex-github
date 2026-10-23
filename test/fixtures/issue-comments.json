@@ -1,0 +1,25 @@
+[
+  {
+    "url": "https://api.github.com/repos/example/widget/issues/comments/6361857913",
+    "html_url": "https://github.com/example/widget/issues/12#issuecomment-6361857913",
+    "id": 6361857913,
+    "user": {
+      "login": "bob",
+      "id": 1002,
+      "type": "User",
+      "html_url": "https://github.com/bob"
+    },
+    "created_at": "2026-09-02T09:00:00Z",
+    "updated_at": "2026-09-02T09:00:00Z",
+    "body": "Reproduced on main."
+  },
+  {
+    "url": "https://api.github.com/repos/example/widget/issues/comments/6361857914",
+    "html_url": "https://github.com/example/widget/issues/12#issuecomment-6361857914",
+    "id": 6361857914,
+    "user": null,
+    "created_at": "2026-09-03T10:00:00Z",
+    "updated_at": "2026-09-03T10:00:00Z",
+    "body": "Me too."
+  }
+]

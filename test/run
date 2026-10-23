@@ -88,6 +88,11 @@ requests() {
   jq -r 'select(.method) | "\(.method) \(.url)"' "$FAKE_LOG"
 }
 
+# The body of the first logged request with METHOD
+body() {
+  log "map(select(.method == \"$1\"))[0].body | fromjson"
+}
+
 # JSON in one line, as jq -c prints it
 json() {
   jq -c . <<< "$1"
@@ -367,6 +372,132 @@ test_threads_comments() {
     | [.text, .revision]')" "[\"LGTM\",\"$C\"]"
   check ghost "$(record PRRC_5 | jq -r '.data.comments[0].author.username')" \
     ghost
+}
+
+ISSUE_COMMENTS="$REPO/issues/12/comments?per_page=100&page"
+
+test_issue() {
+  login
+  route GET "$REPO/issues/12" issue.json
+  route GET "$ISSUE_COMMENTS=1" issue-comments.json
+  call tracker issue 12
+  check status "$STATUS" 0
+  check envelope "$(q '[.id, .source, .role, .kind, .basis, .links,
+    .notes]')" "$(json '["12", "https://github.com/example/widget",
+    "tracker", "issue", "2026-09-03T10:00:00Z", [["issue", "12"]], {}]')"
+  check data "$(q '.data | del(.comments)')" "$(json '{
+    "title": "The widget deadlocks on resize", "type": "Bug",
+    "status": "open", "closed": false, "priority": null,
+    "assignee": {"name": "alice", "email": null, "username": "alice",
+      "me": true},
+    "reporter": {"name": "carol", "email": null, "username": "carol",
+      "me": false},
+    "created": "2026-09-01T09:00:00Z", "updated": "2026-09-03T10:00:00Z",
+    "url": "https://github.com/example/widget/issues/12",
+    "text": "Resizing twice hangs.", "related": []}')"
+  check comments "$(q '.data.comments')" "$(json '[
+    {"id": "6361857913", "author": {"name": "bob", "email": null,
+      "username": "bob", "me": false},
+     "text": "Reproduced on main.", "created": "2026-09-02T09:00:00Z"},
+    {"id": "6361857914", "author": {"name": "ghost", "email": null,
+      "username": "ghost", "me": false},
+     "text": "Me too.", "created": "2026-09-03T10:00:00Z"}]')"
+}
+
+# Issues are public: no token, no user
+test_issue_anonymous() {
+  route GET "$REPO/issues/12" issue.json
+  route GET "$ISSUE_COMMENTS=1" issue-comments.json
+  call tracker issue 12
+  check status "$STATUS" 0
+  check me "$(q .data.assignee.me)" false
+  check auth "$(log '[.[].auth | select(.)] | unique')" '["none"]'
+}
+
+test_issue_closed() {
+  route GET "$REPO/issues/13" issue-closed.json
+  route GET "${ISSUE_COMMENTS/12/13}=1" empty-list.json
+  call tracker issue 13
+  check status "$STATUS" 0
+  check data "$(q '.data | [.status, .closed, .type, .assignee, .text,
+    .comments]')" '["closed",true,null,null,"",[]]'
+}
+
+test_issue_pull_request() {
+  route GET "$REPO/issues/7" issue-pr.json
+  call tracker issue 7
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "#7 is a pull request"
+  check requests "$(requests)" "GET $REPO/issues/7"
+}
+
+# A full page of comments asks for the next one
+test_issue_comment_pages() {
+  jq -c '[range(100) | {id: ., user: {login: "bob"}, body: "x",
+    created_at: "2026-09-02T00:00:00Z"}]' -n > "$TEST_DIR/page1.json"
+  route GET "$REPO/issues/12" issue.json
+  route GET "$ISSUE_COMMENTS=1" "$TEST_DIR/page1.json"
+  route GET "$ISSUE_COMMENTS=2" issue-comments.json
+  call tracker issue 12
+  check status "$STATUS" 0
+  check count "$(q '.data.comments | length')" 102
+  check last "$(q -r '.data.comments[-1].id')" 6361857914
+}
+
+test_issue_http_error() {
+  route GET "$REPO/issues/12" - 404
+  call tracker issue 12
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "Cannot read $REPO/issues/12"
+}
+
+test_search() {
+  local query=repo%3Aexample%2Fwidget%20is%3Aissue%20label%3Abug
+  query+=%20%22dead%20lock%22
+  route GET "$API/search/issues?q=$query&per_page=100" search.json
+  route GET "$REPO/issues/12" issue.json
+  route GET "$ISSUE_COMMENTS=1" issue-comments.json
+  route GET "$REPO/issues/13" issue-closed.json
+  route GET "${ISSUE_COMMENTS/12/13}=1" empty-list.json
+  call tracker search <<< 'label:bug "dead lock"'
+  check status "$STATUS" 0
+  check ids "$(q -s '[.[].id]')" '["12","13"]'
+}
+
+test_search_no_query() {
+  call tracker search < /dev/null
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "No QUERY on stdin"
+}
+
+test_comment() {
+  export GITHUB_TOKEN=$TOKEN
+  route POST "$REPO/issues/12/comments" comment-created.json 201
+  call tracker comment 12 <<< 'Thanks, "fixed" \o/'
+  check status "$STATUS" 0
+  check out "$OUT" ""
+  check requests "$(requests)" "POST $REPO/issues/12/comments"
+  check body "$(body POST)" '{"body":"Thanks, \"fixed\" \\o/\n"}'
+  check auth "$(log '[.[].auth | select(.)]')" '["stdin"]'
+}
+
+test_comment_error() {
+  route POST "$REPO/issues/12/comments" - 401
+  call tracker comment 12 <<< 'x'
+  check status "$STATUS" 1
+  check_has stderr "$ERR" "Cannot comment on #12"
+}
+
+test_transition() {
+  export GITHUB_TOKEN=$TOKEN
+  route PATCH "$REPO/issues/12" issue-closed.json
+  call tracker transition 12 closed
+  check status "$STATUS" 0
+  check out "$OUT" ""
+  check body "$(body PATCH)" '{"state":"closed"}'
+  : > "$FAKE_LOG"
+  call tracker transition 12 open
+  check reopen "$(body PATCH)" '{"state":"open"}'
 }
 
 run() {

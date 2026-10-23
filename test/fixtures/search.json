@@ -1,0 +1,20 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "url": "https://api.github.com/repos/example/widget/issues/12",
+      "number": 12,
+      "title": "The widget deadlocks on resize",
+      "state": "open",
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/example/widget/issues/13",
+      "number": 13,
+      "title": "Widget is slow",
+      "state": "closed",
+      "score": 1.0
+    }
+  ]
+}
