@@ -529,6 +529,15 @@ test_run_links() {
   check links "$(q .links)" "[[\"commit\",\"$C\"],[\"change\",\"7\"]]"
 }
 
+# GitHub ignores case in OWNER and NAME, and prints them its own way
+test_run_links_case() {
+  local ADDR=https://github.com/Example/Widget
+  route GET "$API/repos/Example/Widget/actions/runs/501" run.json
+  call ci run 501
+  check status "$STATUS" 0
+  check links "$(q .links)" "[[\"commit\",\"$C\"],[\"change\",\"7\"]]"
+}
+
 test_suites() {
   route GET "$REPO/actions/runs/501/jobs?per_page=100" jobs.json
   call ci suites 501

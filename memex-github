@@ -392,7 +392,8 @@ def record($kind; $id; $basis; $links; $data): {
 def run: record("run"; (.id | tostring);
   "\(.status):\(.conclusion // "")";
   [["commit", .head_sha]] + [.pull_requests[]?
-    | select(.base.repo.url == $repo) | ["change", (.number | tostring)]];
+    | select((.base.repo.url | ascii_downcase) == ($repo | ascii_downcase))
+    | ["change", (.number | tostring)]];
   {
     commit: .head_sha,
     status: (.status | status),
