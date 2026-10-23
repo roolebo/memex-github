@@ -1,0 +1,360 @@
+#!/usr/bin/env bash
+#
+# memex-github: memex adapter for the discussion role in GitHub pull
+# requests.
+#
+#   memex-github detect REPO
+#   memex-github ADDR COMMAND [ARGUMENTS]
+#
+# README.md specifies the mapping. The token comes from GITHUB_TOKEN, or
+# else from `gh auth token` for ADDR's host, or else from ~/.netrc for the
+# API host: api.github.com, or ADDR's host on GitHub Enterprise. The
+# GraphQL API needs it; without it only the REST call of locate works, on
+# public repositories. Never prompts. Drafts and
+# publishing are not implemented yet and exit 2.
+#
+
+set -e
+
+die() {
+  echo "$*" >&2
+  exit 1
+}
+
+unsupported() {
+  echo "$*" >&2
+  exit 2
+}
+
+usage() {
+  cat << EOF
+Usage: $0 detect REPO
+       $0 ADDR capabilities
+       $0 ADDR locate COMMIT
+       $0 ADDR change CHANGE
+       $0 ADDR threads CHANGE
+EOF
+}
+
+REMOTE_RE='^(https://|ssh://)?([^@/]+@)?github\.com[:/]([^/]+)/([^/]+)$'
+
+# Prints the URL of the first GitHub repository among REPO's remotes
+detect() {
+  local url
+  local repo
+  [ -d "$1" ] || die "No such directory: $1"
+  for url in $(git -C "$1" remote -v | cut -f2 | cut -d' ' -f1); do
+    url=${url%/}
+    if [[ "$url" =~ $REMOTE_RE ]]; then
+      repo=${BASH_REMATCH[3]}/${BASH_REMATCH[4]%.git}
+      echo "discussion https://github.com/$repo"
+      return
+    fi
+  done
+}
+
+ADDR_RE='^(https?)://([^/:]+)/([^/]+)/([^/]+)$'
+
+# Runs curl with the token, if any; the token goes to curl on stdin, not
+# on its command line
+fetch() {
+  if [ "$AUTH" == env ]; then
+    printf 'header = "Authorization: bearer %s"\n' "$GITHUB_TOKEN" |
+      curl -fsS -K - "$@"
+  elif [ "$AUTH" == netrc ]; then
+    curl -fsS --netrc "$@"
+  else
+    curl -fsS "$@"
+  fi
+}
+
+# GET a REST path; prints the JSON
+get() {
+  local reply
+  reply=$(fetch "$API/$1") || die "Cannot read $API/$1"
+  echo "$reply"
+}
+
+# Runs a GraphQL query with variables, given as JSON; prints its data
+graphql() {
+  local body
+  local reply
+  local errors
+  [ -n "$AUTH" ] || die "The GraphQL API needs a token:" \
+    "set GITHUB_TOKEN or add $API_HOST to ~/.netrc"
+  body=$(jq -nc --arg query "$1" --argjson variables "$2" \
+    '{query: $query, variables: $variables}')
+  reply=$(fetch --data-binary "$body" "$GRAPHQL") ||
+    die "Cannot query $GRAPHQL"
+  errors=$(jq -r '.errors[]?.message' <<< "$reply")
+  [ -z "$errors" ] || die "$GRAPHQL: $errors"
+  jq '.data' <<< "$reply"
+}
+
+# The variables of a query on pull request CHANGE, from cursor AFTER
+variables() {
+  jq -nc --arg owner "$OWNER" --arg name "$NAME" --arg number "$1" \
+    --arg after "$2" '{owner: $owner, name: $name,
+      number: ($number | tonumber)}
+      + if $after == "" then {} else {after: $after} end'
+}
+
+PERSON_FRAGMENT='fragment person on Actor {
+  login
+  ... on User { name email }
+}'
+
+# A query of FIELDS of pull request $number; VARIABLES declares more
+pr_query() {
+  printf 'query($owner: String!, $name: String!, $number: Int!%s) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { %s } } } %s' \
+    "$1" "$2" "$PERSON_FRAGMENT"
+}
+
+# Prints as one array the nodes of CONNECTION, with FIELDS, of pull
+# request CHANGE, following its pages
+nodes() {
+  local query
+  local data
+  local page
+  local cursor
+  local pages
+  query=$(pr_query ', $after: String' "page: $2 {
+    pageInfo { hasNextPage endCursor }
+    nodes { $3 } }")
+  while :; do
+    data=$(graphql "$query" "$(variables "$1" "$cursor")") || exit 1
+    page=$(jq -c '.repository.pullRequest.page' <<< "$data")
+    pages+=$(jq -c '.nodes' <<< "$page")
+    [ "$(jq '.pageInfo.hasNextPage' <<< "$page")" == true ] || break
+    cursor=$(jq -r '.pageInfo.endCursor' <<< "$page")
+  done
+  jq -sc add <<< "$pages"
+}
+
+# The login of the user as JSON, or null without a token
+self() {
+  local data
+  if [ -n "$AUTH" ]; then
+    data=$(graphql '{ viewer { login } }' '{}') || exit 1
+    jq '.viewer.login' <<< "$data"
+  else
+    echo null
+  fi
+}
+
+# jq definitions shared by the commands
+JQ_DEFS='
+def person: (. // {login: "ghost"}) | {
+  name: (if (.name // "") != "" then .name else .login end),
+  email: (if (.email // "") != "" then .email else null end),
+  username: .login,
+  me: (.login == $self)
+};
+def record($kind; $id; $basis; $data): {
+  id: $id, source: $addr, role: "discussion", kind: $kind,
+  basis: $basis, links: [["change", $change]], data: $data, notes: {}
+};
+'
+
+COMMIT_FIELDS='oid committedDate parents(first: 10) { nodes { oid } }'
+
+CHANGE_FIELDS='
+  title url state body createdAt updatedAt
+  author { ...person }
+  head: commits(last: 1) { nodes { commit { '$COMMIT_FIELDS' } } }
+  latestOpinionatedReviews(first: 100) {
+    nodes { state author { ...person } }
+  }'
+
+PUSH_FIELDS='
+  ... on HeadRefForcePushedEvent {
+    createdAt
+    actor { ...person }
+    beforeCommit { '$COMMIT_FIELDS' }
+    afterCommit { '$COMMIT_FIELDS' }
+  }'
+
+PUSHES='timelineItems(itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT],
+  first: 100, after: $after)'
+
+change() {
+  local data
+  local pushes
+  [[ "$1" =~ ^[0-9]+$ ]] || die "Not a pull request number: $1"
+  data=$(graphql "$(pr_query '' "$CHANGE_FIELDS")" "$(variables "$1")") ||
+    exit 1
+  pushes=$(nodes "$1" "$PUSHES" "$PUSH_FIELDS") || exit 1
+  jq -c --arg addr "$ADDR" --argjson self "$SELF" --arg change "$1" \
+    --argjson pushes "$pushes" "$JQ_DEFS"'
+      def revision($uploader; $created): {
+        id: .oid,
+        commit: .oid,
+        parents: [.parents.nodes[].oid],
+        fetch: null,
+        uploader: ($uploader | person),
+        created: $created
+      };
+      .repository.pullRequest as $pr
+      | $pr.head.nodes[0].commit as $head
+      | [($pushes[] | .actor as $actor | .createdAt as $at
+          | (.beforeCommit // empty
+             | revision($pr.author; .committedDate)),
+            (.afterCommit // empty | revision($actor; $at))),
+         ($head | revision($pr.author; .committedDate))]
+      | reduce .[] as $r ([];
+          if .[-1].id == $r.id then . else . + [$r] end)
+      | .[0].created = $pr.createdAt
+      | .[length - 1].fetch = "refs/pull/\($change)/head"
+      | . as $revisions
+      | record("change"; $change; ($head.oid + " " + $pr.updatedAt);
+          {
+            title: $pr.title,
+            url: $pr.url,
+            status: ({OPEN: "open", MERGED: "merged",
+                      CLOSED: "abandoned"}[$pr.state]),
+            owner: ($pr.author | person),
+            revisions: $revisions,
+            current: $revisions[-1].id,
+            votes: [$pr.latestOpinionatedReviews.nodes[]
+              | {APPROVED: 1, CHANGES_REQUESTED: -1}[.state] as $value
+              | select($value)
+              | {label: "approved", value: $value, by: (.author | person)}],
+            message: $pr.body
+          })' <<< "$data"
+}
+
+locate() {
+  local number
+  local json
+  json=$(get "repos/$OWNER/$NAME/commits/$1/pulls") || exit 1
+  number=$(jq --arg commit "$1" '(map(select(.head.sha
+    | startswith($commit))) + .)[0].number // empty' <<< "$json")
+  [ -n "$number" ] || die "No pull request has commit $1"
+  change "$number"
+}
+
+COMMENT_FIELDS='id author { ...person } body createdAt updatedAt'
+
+THREAD_FIELDS='
+  id isResolved path subjectType diffSide originalStartLine originalLine
+  comments(first: 100) {
+    nodes {
+      '$COMMENT_FIELDS' state
+      replyTo { id }
+      originalCommit { oid }
+    }
+  }'
+
+REVIEW_FIELDS=$COMMENT_FIELDS' state commit { oid }'
+
+threads() {
+  local review_threads
+  local conversation
+  local reviews
+  [[ "$1" =~ ^[0-9]+$ ]] || die "Not a pull request number: $1"
+  review_threads=$(nodes "$1" 'reviewThreads(first: 100, after: $after)' \
+    "$THREAD_FIELDS") || exit 1
+  conversation=$(nodes "$1" 'comments(first: 100, after: $after)' \
+    "$COMMENT_FIELDS") || exit 1
+  reviews=$(nodes "$1" 'reviews(first: 100, after: $after)' \
+    "$REVIEW_FIELDS") || exit 1
+  jq -nc --arg addr "$ADDR" --argjson self "$SELF" --arg change "$1" \
+    --argjson review_threads "$review_threads" \
+    --argjson conversation "$conversation" --argjson reviews "$reviews" \
+    "$JQ_DEFS"'
+      def anchor:
+        if .subjectType == "FILE" or .originalLine == null then
+          {on: "file", path: .path}
+        else {on: "lines", path: .path,
+          side: (if .diffSide == "LEFT" then "base" else "revision" end),
+          start: (.originalStartLine // .originalLine),
+          end: .originalLine} end;
+      def comment: {
+        id: .id,
+        author: (.author | person),
+        revision: .revision,
+        text: .body,
+        created: .createdAt,
+        reply_to: (.replyTo.id // null),
+        draft: false
+      };
+      def thread($anchor; $resolved):
+        (map(.updatedAt) | max) as $updated
+        | record("thread"; .[0].id;
+            "\(length):\($updated):\($resolved)";
+            {
+              anchor: $anchor,
+              revision: .[0].revision,
+              resolved: $resolved,
+              comments: map(comment)
+            });
+      def single($revision): [. + {revision: $revision}]
+        | thread({on: "change"}; null);
+      [($review_threads[]
+        | (.comments.nodes | map(select(.state != "PENDING")
+            | . + {revision: .originalCommit.oid})) as $posted
+        | select($posted | length > 0)
+        | . as $thread
+        | $posted | thread($thread | anchor; $thread.isResolved)),
+       ($conversation[] | single(null)),
+       ($reviews[] | select(.state != "PENDING" and .body != "")
+        | single(.commit.oid))]
+      | sort_by(.data.comments[0].created)[]'
+}
+
+if [ "$1" == "-h" -o "$1" == "--help" ]; then
+  usage
+  exit 0
+fi
+if [ "$1" == detect ]; then
+  [ $# -eq 2 ] || die "$(usage)"
+  detect "$2"
+  exit 0
+fi
+[ $# -ge 2 ] || die "$(usage)"
+
+ADDR=${1%/}
+[[ "$ADDR" =~ $ADDR_RE ]] || die "Not a GitHub repository URL: $1"
+OWNER=${BASH_REMATCH[3]}
+NAME=${BASH_REMATCH[4]}
+HOST=${BASH_REMATCH[2]}
+if [ "${BASH_REMATCH[2]}" == github.com ]; then
+  API_HOST=api.github.com
+  API=https://$API_HOST
+  GRAPHQL=$API/graphql
+else
+  API_HOST=${BASH_REMATCH[2]}
+  API=${BASH_REMATCH[1]}://$API_HOST/api/v3
+  GRAPHQL=${BASH_REMATCH[1]}://$API_HOST/api/graphql
+fi
+if [ -z "$GITHUB_TOKEN" ] && command -v gh > /dev/null; then
+  GITHUB_TOKEN=$(gh auth token --hostname "$HOST" 2> /dev/null) || true
+fi
+if [ -n "$GITHUB_TOKEN" ]; then
+  AUTH=env
+elif grep -qs "machine $API_HOST\b" ~/.netrc; then
+  AUTH=netrc
+fi
+
+case "$2" in
+  capabilities)
+    echo '{"exact": true, "resolved": true, "drafts": false,' \
+      '"series": false, "votes": true}'
+    ;;
+  locate | change | threads)
+    [ $# -eq 3 ] || die "$(usage)"
+    SELF=$(self)
+    "$2" "$3"
+    ;;
+  series)
+    unsupported "GitHub has no series of pull requests"
+    ;;
+  drafts | draft | discard | publish)
+    unsupported "Not supported yet: $2"
+    ;;
+  *)
+    die "$(usage)"
+    ;;
+esac
