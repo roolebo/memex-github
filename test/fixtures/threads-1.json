@@ -1,0 +1,110 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "page": {
+          "pageInfo": {
+            "hasNextPage": true,
+            "endCursor": "threads-2"
+          },
+          "nodes": [
+            {
+              "id": "PRRT_1",
+              "isResolved": false,
+              "path": "src/lock.c",
+              "subjectType": "LINE",
+              "diffSide": "RIGHT",
+              "originalStartLine": 10,
+              "originalLine": 12,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_1",
+                    "author": {
+                      "login": "bob",
+                      "name": "Bob Reviewer",
+                      "email": ""
+                    },
+                    "body": "This leaks the lock.",
+                    "createdAt": "2026-09-02T11:00:00Z",
+                    "updatedAt": "2026-09-02T11:00:00Z",
+                    "state": "SUBMITTED",
+                    "replyTo": null,
+                    "originalCommit": {
+                      "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  },
+                  {
+                    "id": "PRRC_2",
+                    "author": {
+                      "login": "alice",
+                      "name": "Alice Author",
+                      "email": "alice@example.org"
+                    },
+                    "body": "Fixed",
+                    "createdAt": "2026-09-02T12:00:00Z",
+                    "updatedAt": "2026-09-02T12:00:00Z",
+                    "state": "SUBMITTED",
+                    "replyTo": {
+                      "id": "PRRC_1"
+                    },
+                    "originalCommit": {
+                      "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    }
+                  },
+                  {
+                    "id": "PRRC_3",
+                    "author": {
+                      "login": "alice",
+                      "name": "Alice Author",
+                      "email": "alice@example.org"
+                    },
+                    "body": "Draft reply",
+                    "createdAt": "2026-09-05T08:00:00Z",
+                    "updatedAt": "2026-09-05T08:00:00Z",
+                    "state": "PENDING",
+                    "replyTo": {
+                      "id": "PRRC_2"
+                    },
+                    "originalCommit": {
+                      "oid": "cccccccccccccccccccccccccccccccccccccccc"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_2",
+              "isResolved": true,
+              "path": "src/widget.c",
+              "subjectType": "FILE",
+              "diffSide": "RIGHT",
+              "originalStartLine": null,
+              "originalLine": null,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_4",
+                    "author": {
+                      "login": "dan",
+                      "name": "",
+                      "email": ""
+                    },
+                    "body": "Split this file.",
+                    "createdAt": "2026-09-03T09:00:00Z",
+                    "updatedAt": "2026-09-03T09:00:00Z",
+                    "state": "SUBMITTED",
+                    "replyTo": null,
+                    "originalCommit": {
+                      "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

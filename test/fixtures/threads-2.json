@@ -1,0 +1,70 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "page": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "threads-3"
+          },
+          "nodes": [
+            {
+              "id": "PRRT_3",
+              "isResolved": false,
+              "path": "src/lock.c",
+              "subjectType": "LINE",
+              "diffSide": "LEFT",
+              "originalStartLine": null,
+              "originalLine": 7,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_5",
+                    "author": null,
+                    "body": "Why was this removed?",
+                    "createdAt": "2026-09-04T09:00:00Z",
+                    "updatedAt": "2026-09-04T09:00:00Z",
+                    "state": "SUBMITTED",
+                    "replyTo": null,
+                    "originalCommit": {
+                      "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_4",
+              "isResolved": false,
+              "path": "src/lock.c",
+              "subjectType": "LINE",
+              "diffSide": "RIGHT",
+              "originalStartLine": null,
+              "originalLine": 3,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_6",
+                    "author": {
+                      "login": "alice",
+                      "name": "Alice Author",
+                      "email": "alice@example.org"
+                    },
+                    "body": "Draft thread",
+                    "createdAt": "2026-09-05T08:30:00Z",
+                    "updatedAt": "2026-09-05T08:30:00Z",
+                    "state": "PENDING",
+                    "replyTo": null,
+                    "originalCommit": {
+                      "oid": "cccccccccccccccccccccccccccccccccccccccc"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

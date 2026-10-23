@@ -1,0 +1,36 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "page": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "IC2"
+          },
+          "nodes": [
+            {
+              "id": "IC_1",
+              "author": {
+                "login": "carol",
+                "name": "Carol Commenter",
+                "email": "carol@example.org"
+              },
+              "body": "Thanks for the patch.",
+              "createdAt": "2026-09-01T10:00:00Z",
+              "updatedAt": "2026-09-01T10:30:00Z"
+            },
+            {
+              "id": "IC_2",
+              "author": {
+                "login": "github-actions"
+              },
+              "body": "Build passed.",
+              "createdAt": "2026-09-04T11:00:00Z",
+              "updatedAt": "2026-09-04T11:00:00Z"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "page": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "R3"
+          },
+          "nodes": [
+            {
+              "id": "PRR_1",
+              "author": {
+                "login": "bob",
+                "name": "Bob Reviewer",
+                "email": ""
+              },
+              "body": "LGTM",
+              "createdAt": "2026-09-05T09:00:00Z",
+              "updatedAt": "2026-09-05T09:00:00Z",
+              "state": "APPROVED",
+              "commit": {
+                "oid": "cccccccccccccccccccccccccccccccccccccccc"
+              }
+            },
+            {
+              "id": "PRR_2",
+              "author": {
+                "login": "dan",
+                "name": "",
+                "email": ""
+              },
+              "body": "",
+              "createdAt": "2026-09-05T09:10:00Z",
+              "updatedAt": "2026-09-05T09:10:00Z",
+              "state": "CHANGES_REQUESTED",
+              "commit": {
+                "oid": "cccccccccccccccccccccccccccccccccccccccc"
+              }
+            },
+            {
+              "id": "PRR_3",
+              "author": {
+                "login": "alice",
+                "name": "Alice Author",
+                "email": "alice@example.org"
+              },
+              "body": "Pending summary",
+              "createdAt": "2026-09-05T09:20:00Z",
+              "updatedAt": "2026-09-05T09:20:00Z",
+              "state": "PENDING",
+              "commit": {
+                "oid": "cccccccccccccccccccccccccccccccccccccccc"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

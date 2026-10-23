@@ -73,6 +73,11 @@ q() {
   jq -c "$@" <<< "$OUT"
 }
 
+# The record with id ID in OUT
+record() {
+  q "select(.id == \"$1\")"
+}
+
 # Apply a jq FILTER to the logged requests, as an array
 log() {
   jq -sc "$1" "$FAKE_LOG"
@@ -298,6 +303,70 @@ test_enterprise() {
   check status "$STATUS" 0
   check source "$(q .source)" '"https://ghe.example.com/example/widget"'
   check gh "$(log '[.[].gh | select(.)][0][-1]')" '"ghe.example.com"'
+}
+
+# The routes of the threads of pull request 7, over two pages
+threads() {
+  graphql threads-2.json '"after":"threads-2"'
+  graphql threads-1.json reviewThreads
+  graphql conversation.json 'page: comments'
+  graphql reviews.json 'page: reviews'
+}
+
+test_threads() {
+  login
+  threads
+  call discussion threads 7
+  check status "$STATUS" 0
+  check "oldest first" "$(q -s '[.[].id]')" "$(json '["IC_1", "PRRC_1",
+    "PRRC_4", "PRRC_5", "IC_2", "PRR_1"]')"
+  check envelope "$(record PRRC_1 | jq -c '[.source, .role, .kind,
+    .links, .notes]')" "$(json '["https://github.com/example/widget",
+    "discussion", "thread", [["change", "7"]], {}]')"
+  check pages "$(log '[.[] | select(.method) | .body | fromjson
+    | .variables.after // empty]')" '["threads-2"]'
+}
+
+test_threads_anchors() {
+  login
+  threads
+  call discussion threads 7
+  check lines "$(record PRRC_1 | jq -c .data.anchor)" "$(json '{
+    "on": "lines", "path": "src/lock.c", "side": "revision",
+    "start": 10, "end": 12}')"
+  check file "$(record PRRC_4 | jq -c .data.anchor)" \
+    '{"on":"file","path":"src/widget.c"}'
+  check base "$(record PRRC_5 | jq -c .data.anchor)" "$(json '{
+    "on": "lines", "path": "src/lock.c", "side": "base",
+    "start": 7, "end": 7}')"
+  check conversation "$(record IC_1 | jq -c .data.anchor)" '{"on":"change"}'
+  check review "$(record PRR_1 | jq -c .data.anchor)" '{"on":"change"}'
+}
+
+# Pending comments and reviews are drafts: threads leaves them out
+test_threads_comments() {
+  login
+  threads
+  call discussion threads 7
+  check replies "$(record PRRC_1 | jq -c '[.data.comments[]
+    | [.id, .reply_to, .revision, .author.me]]')" "$(json "[
+    [\"PRRC_1\", null, \"$A\", false],
+    [\"PRRC_2\", \"PRRC_1\", \"$B\", true]]")"
+  check revision "$(record PRRC_1 | jq -r .data.revision)" "$A"
+  check basis "$(record PRRC_1 | jq -r .basis)" \
+    "2:2026-09-02T12:00:00Z:false"
+  check resolved "$(q -s 'map({(.id): .data.resolved}) | add')" \
+    "$(json '{"IC_1": null, "PRRC_1": false, "PRRC_4": true,
+    "PRRC_5": false, "IC_2": null, "PRR_1": null}')"
+  check conversation "$(record IC_1 | jq -c .data.comments)" "$(json '[{
+    "id": "IC_1", "author": {"name": "Carol Commenter",
+      "email": "carol@example.org", "username": "carol", "me": false},
+    "revision": null, "text": "Thanks for the patch.",
+    "created": "2026-09-01T10:00:00Z", "reply_to": null, "draft": false}]')"
+  check review "$(record PRR_1 | jq -c '.data.comments[0]
+    | [.text, .revision]')" "[\"LGTM\",\"$C\"]"
+  check ghost "$(record PRRC_5 | jq -r '.data.comments[0].author.username')" \
+    ghost
 }
 
 run() {
