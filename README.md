@@ -1,7 +1,8 @@
 # memex-github
 
-A [memex] adapter for the `discussion` role in GitHub pull requests. The
-role is specified in memex's [discussion.md].
+A [memex] adapter for GitHub: `discussion` in pull requests and `tracker`
+in issues. The roles are specified in memex's [discussion.md] and
+[tracker.md].
 
 ## Reaching GitHub
 
@@ -51,6 +52,22 @@ Capabilities: `series` is false, the others true.
 - `publish`: `approved` 1 is APPROVE, -1 REQUEST_CHANGES, else COMMENT.
 - `resolved` in a draft is not supported.
 
+## Tracker
+
+    issue ISSUE     GET /repos/OWNER/REPO/issues/ISSUE and its comments
+    search          GET /search/issues, `repo:OWNER/REPO is:issue` and
+                    the QUERY
+    comment ISSUE   POST /repos/OWNER/REPO/issues/ISSUE/comments
+    transition ISSUE STATUS
+                    PATCH /repos/OWNER/REPO/issues/ISSUE, STATUS open or
+                    closed
+
+- ISSUE is the issue number; a pull request's number is refused.
+- `type`: the issue type, or null; `priority`: null.
+- `closed`: `state` is closed.
+- `related`: empty.
+- `basis`: `updated_at`.
+
 ## Open questions
 
 - Fast-forward pushes leave no event: how to count REVISIONs?
@@ -58,7 +75,7 @@ Capabilities: `series` is false, the others true.
 - Stacked pull requests as a SERIES?
 - `resolved` takes effect at once: hold it until `publish`?
 - A fork: bind it, or its `parent`?
-- Issues and Actions: adapters in this repo, or separate repos?
 
 [memex]: https://github.com/roolebo/memex
 [discussion.md]: https://github.com/roolebo/memex/blob/main/discussion.md
+[tracker.md]: https://github.com/roolebo/memex/blob/main/tracker.md
